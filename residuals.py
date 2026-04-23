@@ -1,6 +1,6 @@
 import cv2
 
-gif = cv2.VideoCapture('Freddy Jumpscare.gif')
+gif = cv2.VideoCapture('Patrick.mp4')
 
 frames = []
 
@@ -15,7 +15,7 @@ while True:
 
     # Process 'frame' (it is already a NumPy array for OpenCV)
     cv2.imshow('GIF Frame', frame)
-    if cv2.waitKey(100) & 0xFF == ord('q'):
+    if cv2.waitKey(20) & 0xFF == ord('q'):
         break
 
 gif.release()
@@ -28,7 +28,7 @@ for i in range(1, len(frames)):
     residual = cv2.absdiff(frame1, frame2)
 
     cv2.imshow('Residual', residual)
-    if cv2.waitKey(100) & 0xFF == ord('q'):
+    if cv2.waitKey(20) & 0xFF == ord('q'):
         break
 
 cv2.waitKey(0)
