@@ -197,11 +197,6 @@ def train(
 
     # ---- Training loop ----------------------------------------------------
     losses = []
-    loss_threshold = 0.05
-    prev_loss = 2
-    min_steps = 1000
-
-
     for step in range(1, n_steps + 1):
         optimizer.zero_grad()
 
@@ -217,17 +212,11 @@ def train(
 
         losses.append(loss.item())
 
-        if ((prev_loss-loss.item())/prev_loss < loss_threshold) and step > min_steps:
-            print(f"  Step {step:5d}/{n_steps}  loss={loss.item():.9f}")
-            _show_progress(target, rendered, losses, step, save_path)
-            break
-
-        if step % 50 == 0 or step == 1:
-            print(f"  Step {step:5d}/{n_steps}  loss={loss.item():.9f}")
+        if step % 100 == 0 or step == 1:
+            print(f"  Step {step:5d}/{n_steps}  loss={loss.item():.5f}")
 
         if step % show_every == 0 or step == n_steps:
             _show_progress(target, rendered, losses, step, save_path)
-        prev_loss = loss.item()
 
     print(f"\nDone! Final render saved to '{save_path}'")
     return model, losses
