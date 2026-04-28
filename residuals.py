@@ -1,6 +1,6 @@
 import cv2
 
-gif = cv2.VideoCapture('Patrick.mp4')
+gif = cv2.VideoCapture('The Car Crash - 1080p H.264.mp4')
 
 frames = []
 
