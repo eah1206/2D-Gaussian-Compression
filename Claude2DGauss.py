@@ -199,6 +199,7 @@ def train(
     losses = []
     loss_threshold = 0.05
     prev_loss = 2
+    min_steps = 1000
 
 
     for step in range(1, n_steps + 1):
@@ -216,7 +217,7 @@ def train(
 
         losses.append(loss.item())
 
-        if ((prev_loss-loss.item())/prev_loss < loss_threshold) and step > 1:
+        if ((prev_loss-loss.item())/prev_loss < loss_threshold) and step > min_steps:
             print(f"  Step {step:5d}/{n_steps}  loss={loss.item():.5f}")
             _show_progress(target, rendered, losses, step, save_path)
             break
