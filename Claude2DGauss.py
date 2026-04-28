@@ -218,12 +218,12 @@ def train(
         losses.append(loss.item())
 
         if ((prev_loss-loss.item())/prev_loss < loss_threshold) and step > min_steps:
-            print(f"  Step {step:5d}/{n_steps}  loss={loss.item():.5f}")
+            print(f"  Step {step:5d}/{n_steps}  loss={loss.item():.9f}")
             _show_progress(target, rendered, losses, step, save_path)
             break
 
         if step % 50 == 0 or step == 1:
-            print(f"  Step {step:5d}/{n_steps}  loss={loss.item():.5f}")
+            print(f"  Step {step:5d}/{n_steps}  loss={loss.item():.9f}")
 
         if step % show_every == 0 or step == n_steps:
             _show_progress(target, rendered, losses, step, save_path)
