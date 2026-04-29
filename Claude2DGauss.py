@@ -6,8 +6,8 @@ Fits a set of 2D Gaussian splats to a target image using gradient descent.
 Requirements:
     pip install torch torchvision pillow matplotlib numpy
 
-Usage:
-    python gaussian_splat_2d.py --image path/to/image.png --n_gaussians 1000 --steps 2000
+Example Usage:
+    python Claude2DGauss.py --folder folder_name --n_gaussians 1000 --steps 2000 --max_index 100 --start_index 50
 """
 
 import argparse
@@ -15,9 +15,11 @@ import math
 
 import matplotlib.pyplot as plt
 import numpy as np
+import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
+from cv2 import imwrite
 from PIL import Image
 
 
@@ -26,12 +28,25 @@ from PIL import Image
 # ---------------------------------------------------------------------------
 
 def get_device() -> torch.device:
+    if torch.cuda.is_available():
+        print("Using CUDA (Nvidia GPU)")
+        return torch.device('cuda')
     if torch.backends.mps.is_available():
         print("Using MPS (Apple Silicon GPU)")
         return torch.device("mps")
     print("Using CPU")
     return torch.device("cpu")
 
+
+# ---------------------------------------------------------------------------
+# Loading all images in the folder of choice (if it exists)
+# ---------------------------------------------------------------------------
+
+def load_folder(folder_name: str, max_index: int, starting_index: int = 0):
+    """Returns the desired folder path, and the list of filenames in that folder (inside a defined slice)"""
+    folder_path = os.path.join('Output_Data', folder_name, 'residuals')
+    filenames = os.listdir(folder_path)[starting_index: max_index]
+    return folder_path, filenames
 
 # ---------------------------------------------------------------------------
 # Gaussian Splat model
@@ -155,12 +170,12 @@ def load_image(path: str, max_size: int = 256) -> torch.Tensor:
     img = Image.open(path).convert("RGB")
 
     # Optionally downscale so training is fast even on CPU
-    w, h = img.size
-    scale = min(max_size / max(h, w), 1.0)
-    if scale < 1.0:
-        new_w, new_h = int(w * scale), int(h * scale)
-        img = img.resize((new_w, new_h), Image.LANCZOS) # type: ignore
-        print(f"Resized image to {new_w}×{new_h}")
+    # w, h = img.size
+    # scale = min(max_size / max(h, w), 1.0)
+    # if scale < 1.0:
+    #     new_w, new_h = int(w * scale), int(h * scale)
+    #     img = img.resize((new_w, new_h), Image.LANCZOS) # type: ignore
+    #     print(f"Resized image to {new_w}×{new_h}")
 
     return torch.from_numpy(np.array(img) / 255.0).float()
 
@@ -215,10 +230,11 @@ def train(
         if step % 100 == 0 or step == 1:
             print(f"  Step {step:5d}/{n_steps}  loss={loss.item():.5f}")
 
-        if step % show_every == 0 or step == n_steps:
-            _show_progress(target, rendered, losses, step, save_path)
+        #if step % show_every == 0 or step == n_steps:
+            #_show_progress(target, rendered, losses, step, save_path)
 
     print(f"\nDone! Final render saved to '{save_path}'")
+    imwrite(save_path, rendered.detach().cpu().numpy())
     return model, losses
 
 
@@ -250,9 +266,11 @@ def _show_progress(target, rendered, losses, step, save_path):
 
 def parse_args():
     p = argparse.ArgumentParser(description="Fit 2D Gaussian splats to an image (CPU-friendly)")
-    p.add_argument("--image",         type=str,   required=True,  help="Path to input image")
+    p.add_argument("--folder",         type=str,   required=True,  help="Path to residuals folder")
     p.add_argument("--n_gaussians",   type=int,   default=1000,   help="Number of Gaussian splats")
     p.add_argument("--steps",         type=int,   default=2000,   help="Optimisation steps")
+    p.add_argument("--max_index",     type=int,   required=True,  help="The last image you want to compute")
+    p.add_argument("--start_index",   type=int,   default=0,      help="The image you want to start computations on")
     p.add_argument("--lr",            type=float, default=5e-3,   help="Base learning rate")
     p.add_argument("--max_size",      type=int,   default=256,    help="Max image dimension (resize if larger)")
     p.add_argument("--batch_size",    type=int,   default=64,     help="Gaussians per render batch (lower = less RAM)")
@@ -263,13 +281,36 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    train(
-        image_path    = args.image,
-        n_gaussians   = args.n_gaussians,
-        n_steps       = args.steps,
-        lr            = args.lr,
-        batch_size    = args.batch_size,
-        max_image_size= args.max_size,
-        save_path     = args.output,
-        show_every    = args.show_every,
-    )
+    if (args.max_index < args.start_index) or args.max_index < 0 or args.start_index < 0:
+        print("Error in defined indexes!")
+        exit()
+    
+    folder_path, image_list = load_folder(args.folder, args.max_index)
+    splat_path = os.path.join('Splats', args.folder, str(args.n_gaussians))
+    print(image_list)
+    if not os.path.exists(splat_path):
+        print(f'Creating Splats folder at {splat_path}...')
+        os.makedirs(splat_path)
+    else:
+        print(f'Adding to folder {splat_path}...')
+
+    for filename in image_list:
+        full_path = os.path.join(folder_path, filename)
+        splat_name = f'{args.folder}_splat_{args.n_gaussians}{filename[-8:-4]}'
+        print(os.path.join(splat_path, f'{splat_name}.png'))
+        if os.path.exists(os.path.join(splat_path, f'{splat_name}.png')):
+            print(f'Splat at {full_path} already exists, skipping...')
+            continue
+        else:
+            print(f'Computing 2D Gaussian for {filename}...')
+        train(
+            image_path    = full_path,
+            n_gaussians   = args.n_gaussians,
+            n_steps       = args.steps,
+            lr            = args.lr,
+            batch_size    = args.batch_size,
+            max_image_size= args.max_size,
+            save_path     = os.path.join(splat_path, f'{splat_name}.png'),
+            show_every    = args.show_every,
+        )
+    print("Calculations complete!")

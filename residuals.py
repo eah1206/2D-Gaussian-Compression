@@ -2,6 +2,8 @@ import cv2
 import numpy as np
 import os
 import shutil
+
+
 clip_name = "Patrick.mp4"
 parent_path = 'Output_Data'
 
@@ -21,16 +23,14 @@ def save_data(frames: list, residuals: list):
     print("Saving frames...")
     for i in range(len(frames)):
         curr_frame = frames[i]
-        bgr_data = cv2.cvtColor(curr_frame, cv2.COLOR_RGB2BGR)
         image_path = os.path.join(frames_path, f"{name}_frame_{i:03}.png")
-        cv2.imwrite(image_path, bgr_data)
+        cv2.imwrite(image_path, curr_frame)
     
     print("Saving residuals...")
     for i in range(len(residuals)):
         curr_frame = residuals[i]
-        bgr_data = cv2.cvtColor(curr_frame, cv2.COLOR_RGB2BGR)
         image_path = os.path.join(residuals_path, f"{name}_residual_{i:03}.png")
-        cv2.imwrite(image_path, bgr_data)
+        cv2.imwrite(image_path, curr_frame)
     print("Saving Completed!")
     return
 
