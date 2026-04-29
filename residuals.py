@@ -4,7 +4,7 @@ import os
 import shutil
 
 
-clip_name = "Patrick.mp4"
+clip_name = "Office_Car_Crash.mp4"
 parent_path = 'Output_Data'
 
 def save_data(frames: list, residuals: list):
@@ -42,17 +42,29 @@ def display_images(images: list, name: str, fps: float):
             break
     cv2.destroyAllWindows()
 
+def resize_image(frame):
+    h, w = frame.shape[:2]
+    if max(h, w) <= 256:
+        return frame
+    scale = 256 / max(h, w)
+    new_w = int(w * scale)
+    new_h = int(h * scale)
+    return cv2.resize(frame, (new_w, new_h))
+
+
 clip = cv2.VideoCapture(clip_name)
 
 clip_fps = clip.get(cv2.CAP_PROP_FPS)
 frames = []
+
 
 while True:
     end, frame = clip.read()
     
     if not end:
         break
-
+    
+    frame = resize_image(frame)
     # Add each frame of the clip to an array
     frames.append(frame)
 
@@ -66,10 +78,15 @@ for i in range(1, len(frames)):
     frame1 = frames[i-1]
     frame2 = frames[i]
 
-    residual = cv2.absdiff(frame1, frame2)
+    #residual = cv2.absdiff(frame1, frame2)
+    # When extracting — save signed diff instead
+    diff = cv2.subtract(frame2.astype(np.int16), frame1.astype(np.int16))
+    # Shift into [0, 255] range for saving: 0 = -128, 128 = 0, 255 = +127
+    residual = np.clip(diff + 128, 0, 255).astype(np.uint8)
+
     residuals.append(residual)
 
-#display_images(residuals, 'Residual', clip_fps)
+display_images(residuals, 'Residual', clip_fps)
 
 save_data(frames, residuals)
 cv2.waitKey(0)
