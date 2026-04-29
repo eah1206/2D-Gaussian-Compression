@@ -19,7 +19,8 @@ import os
 import torch
 import torch.nn as nn
 import torch.optim as optim
-from cv2 import imwrite
+from torchvision.utils import save_image
+import cv2
 from PIL import Image
 
 
@@ -42,9 +43,9 @@ def get_device() -> torch.device:
 # Loading all images in the folder of choice (if it exists)
 # ---------------------------------------------------------------------------
 
-def load_folder(folder_name: str, max_index: int, starting_index: int = 0):
+def load_folder(folder_name: str, folder_type:str, max_index: int, starting_index: int = 0):
     """Returns the desired folder path, and the list of filenames in that folder (inside a defined slice)"""
-    folder_path = os.path.join('Output_Data', folder_name, 'residuals')
+    folder_path = os.path.join('Output_Data', folder_name, folder_type)
     filenames = os.listdir(folder_path)[starting_index: max_index]
     return folder_path, filenames
 
@@ -230,11 +231,12 @@ def train(
         if step % 100 == 0 or step == 1:
             print(f"  Step {step:5d}/{n_steps}  loss={loss.item():.5f}")
 
-        #if step % show_every == 0 or step == n_steps:
+        if step % show_every == 0 or step == n_steps:
+            print(rendered.shape)
+            save_image(tensor=rendered.permute(2, 0, 1), fp=save_path)
             #_show_progress(target, rendered, losses, step, save_path)
 
     print(f"\nDone! Final render saved to '{save_path}'")
-    imwrite(save_path, rendered.detach().cpu().numpy())
     return model, losses
 
 
@@ -266,7 +268,8 @@ def _show_progress(target, rendered, losses, step, save_path):
 
 def parse_args():
     p = argparse.ArgumentParser(description="Fit 2D Gaussian splats to an image (CPU-friendly)")
-    p.add_argument("--folder",         type=str,   required=True,  help="Path to residuals folder")
+    p.add_argument("--folder",        type=str,   required=True,  help="Path to residuals folder")
+    p.add_argument("--type",          type=str,   required=True,  choices=['residuals', 'frames'] ,help="residuals or frames?")
     p.add_argument("--n_gaussians",   type=int,   default=1000,   help="Number of Gaussian splats")
     p.add_argument("--steps",         type=int,   default=2000,   help="Optimisation steps")
     p.add_argument("--max_index",     type=int,   required=True,  help="The last image you want to compute")
@@ -285,9 +288,8 @@ if __name__ == "__main__":
         print("Error in defined indexes!")
         exit()
     
-    folder_path, image_list = load_folder(args.folder, args.max_index)
-    splat_path = os.path.join('Splats', args.folder, str(args.n_gaussians))
-    print(image_list)
+    folder_path, image_list = load_folder(args.folder, args.type, args.max_index)
+    splat_path = os.path.join('Splats', args.folder, args.type, str(args.n_gaussians))
     if not os.path.exists(splat_path):
         print(f'Creating Splats folder at {splat_path}...')
         os.makedirs(splat_path)
@@ -296,8 +298,7 @@ if __name__ == "__main__":
 
     for filename in image_list:
         full_path = os.path.join(folder_path, filename)
-        splat_name = f'{args.folder}_splat_{args.n_gaussians}{filename[-8:-4]}'
-        print(os.path.join(splat_path, f'{splat_name}.png'))
+        splat_name = f'{args.folder}_splat_{args.type}_{args.n_gaussians}{filename[-8:-4]}'
         if os.path.exists(os.path.join(splat_path, f'{splat_name}.png')):
             print(f'Splat at {full_path} already exists, skipping...')
             continue
