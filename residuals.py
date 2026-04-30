@@ -4,7 +4,7 @@ import os
 import shutil
 
 
-clip_name = "Office_Car_Crash.mp4"
+clip_name = "Patrick.mp4"
 parent_path = 'Output_Data'
 
 def save_data(frames: list, residuals: list):
