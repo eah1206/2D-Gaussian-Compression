@@ -89,13 +89,13 @@ for i in range(1, len(frames)):
     # ----------------------------------------------------------------------------------------------------------------------------------
     # Other Implementaion. Residuals look weird, but reassembled seeingly losslessly. Uncomment and comment other implementation to run
     # ----------------------------------------------------------------------------------------------------------------------------------
-    #diff = frame2.astype(np.int16) - frame1.astype(np.int16)  # range: [-255, 255]
-    #residual = diff.astype(np.uint8)  # wraps mod 256, no shift needed
-    #cv2.imwrite("residual.png", residual)  # PNG is still required!
+    # diff = frame2.astype(np.int16) - frame1.astype(np.int16)  # range: [-255, 255]
+    # residual = diff.astype(np.uint8)  # wraps mod 256, no shift needed
+    # cv2.imwrite("residual.png", residual)  # PNG is still required!
 
     residuals.append(residual)
 
-display_images(residuals, 'Residual', clip_fps)
+# display_images(residuals, 'Residual', clip_fps)
 
 save_data(frames, residuals)
 cv2.waitKey(0)
