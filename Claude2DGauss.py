@@ -232,7 +232,6 @@ def train(
             print(f"  Step {step:5d}/{n_steps}  loss={loss.item():.5f}")
 
         if step % show_every == 0 or step == n_steps:
-            print(rendered.shape)
             save_image(tensor=rendered.permute(2, 0, 1), fp=save_path)
             #_show_progress(target, rendered, losses, step, save_path)
 
