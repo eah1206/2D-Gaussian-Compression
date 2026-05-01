@@ -5,6 +5,7 @@ import cv2
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import re
 
 
 # ------------------------------------------------------------
@@ -26,7 +27,7 @@ VIDEO_CONFIGS = [
         "clip_name": "Office_Car_Crash",
         "display_name": "Office Car Crash",
         "variants": ["frames", "residuals"],
-        "splats": [10, 100, 1000],
+        "splats": [10, 100],
     },
 ]
 
@@ -34,6 +35,150 @@ VIDEO_CONFIGS = [
 # ------------------------------------------------------------
 # File helpers
 # ------------------------------------------------------------
+
+
+def extract_frame_index(path: Path) -> int:
+    """
+    Extracts the final number before the file extension.
+
+    Examples:
+        Patrick_splat_frames_1000_002.png -> 2
+        Patrick_splat_residuals_10_313.png -> 313
+        frame_00042.png -> 42
+    """
+    match = re.search(r"_(\d+)\.[^.]+$", path.name)
+
+    if not match:
+        raise ValueError(f"Could not extract frame index from filename: {path.name}")
+
+    return int(match.group(1))
+
+def load_reconstructed_pngs(
+    clip_name: str,
+    variant: str,
+    splats: int,
+) -> list[tuple[int, Path]]:
+    """
+    Loads reconstructed PNG paths while preserving original frame numbering.
+
+    Expected path:
+        Splats/[Name]/[frames or residuals]/[splats]
+    """
+
+    folder = Path("Splats") / clip_name / variant / str(splats)
+
+    image_paths = sorted_image_paths(folder)
+
+    indexed_paths = [
+        (extract_frame_index(path), path)
+        for path in image_paths
+    ]
+
+    indexed_paths.sort(key=lambda item: item[0])
+
+    return indexed_paths
+
+def summarize_psnr_values(
+    clip_name: str,
+    display_name: str,
+    variant: str,
+    splats: int,
+    psnr_values: list[float],
+    num_compared_frames: int,
+) -> dict:
+
+    finite_values = [
+        value for value in psnr_values
+        if math.isfinite(value)
+    ]
+
+    if not finite_values:
+        mean_psnr = float("inf")
+        std_psnr = 0.0
+        median_psnr = float("inf")
+        min_psnr = float("inf")
+        max_psnr = float("inf")
+    else:
+        values = np.array(finite_values, dtype=np.float64)
+
+        mean_psnr = float(np.mean(values))
+        std_psnr = float(np.std(values, ddof=1)) if len(values) > 1 else 0.0
+        median_psnr = float(np.median(values))
+        min_psnr = float(np.min(values))
+        max_psnr = float(np.max(values))
+
+    return {
+        "clip_name": clip_name,
+        "display_name": display_name,
+        "variant": variant,
+        "splats": splats,
+        "num_compared_frames": num_compared_frames,
+        "mean_psnr": mean_psnr,
+        "std_psnr": std_psnr,
+        "median_psnr": median_psnr,
+        "min_psnr": min_psnr,
+        "max_psnr": max_psnr,
+    }
+
+def analyze_png_reconstruction(
+    clip_name: str,
+    display_name: str,
+    variant: str,
+    splats: int,
+    original_frames: list[np.ndarray],
+) -> tuple[list[dict], dict]:
+
+    reconstructed_paths = load_reconstructed_pngs(
+        clip_name=clip_name,
+        variant=variant,
+        splats=splats,
+    )
+
+    per_frame_rows = []
+    psnr_values = []
+
+    for source_frame_index, reconstructed_path in reconstructed_paths:
+        if source_frame_index >= len(original_frames):
+            print(
+                f"WARNING: Skipping {reconstructed_path.name}; "
+                f"frame index {source_frame_index} is outside original frame count "
+                f"{len(original_frames)}."
+            )
+            continue
+
+        original = original_frames[source_frame_index]
+
+        reconstructed = cv2.imread(str(reconstructed_path), cv2.IMREAD_COLOR)
+
+        if reconstructed is None:
+            raise ValueError(f"Could not read reconstructed image: {reconstructed_path}")
+
+        psnr = psnr_between_frames(original, reconstructed)
+
+        per_frame_rows.append(
+            {
+                "clip_name": clip_name,
+                "display_name": display_name,
+                "variant": variant,
+                "splats": splats,
+                "source_frame_index": source_frame_index,
+                "reconstructed_file": reconstructed_path.name,
+                "psnr": psnr,
+            }
+        )
+
+        psnr_values.append(psnr)
+
+    summary_row = summarize_psnr_values(
+        clip_name=clip_name,
+        display_name=display_name,
+        variant=variant,
+        splats=splats,
+        psnr_values=psnr_values,
+        num_compared_frames=len(psnr_values),
+    )
+
+    return per_frame_rows, summary_row
 
 def ensure_output_dirs() -> None:
     ANALYSIS_DIR.mkdir(parents=True, exist_ok=True)
@@ -286,23 +431,19 @@ def run_analysis() -> tuple[pd.DataFrame, pd.DataFrame]:
 
         for variant in config["variants"]:
             for splats in config["splats"]:
-                video_path = find_video_path(clip_name, variant, splats)
+                reconstructed_folder = Path("Splats") / clip_name / variant / str(splats)
 
-                if video_path is None:
-                    print(
-                        f"Skipping missing video: "
-                        f"{clip_name}_{variant}_{splats}.mp4"
-                    )
+                if not reconstructed_folder.exists():
+                    print(f"Skipping missing folder: {reconstructed_folder}")
                     continue
 
-                print(f"Analyzing {video_path.name}...")
+                print(f"Analyzing PNG reconstruction folder: {reconstructed_folder}")
 
-                frame_rows, summary_row = analyze_video(
+                frame_rows, summary_row = analyze_png_reconstruction(
                     clip_name=clip_name,
                     display_name=display_name,
                     variant=variant,
                     splats=splats,
-                    video_path=video_path,
                     original_frames=original_frames,
                 )
 
@@ -320,7 +461,7 @@ def run_analysis() -> tuple[pd.DataFrame, pd.DataFrame]:
 # ------------------------------------------------------------
 
 def make_label(display_name: str, variant: str) -> str:
-    variant_label = "Frames" if variant == "frames" else "Residuals"
+    variant_label = "Original" if variant == "frames" else "Novel Method"
     return f"{display_name} {variant_label}"
 
 
@@ -396,23 +537,24 @@ def plot_psnr_over_time_for_clip(
     grouped = clip_df.groupby(["variant", "splats"])
 
     for (variant, splats), group in grouped:
-        group = group.sort_values("frame_index")
+        group = group.sort_values("source_frame_index")
 
-        variant_label = "Frames" if variant == "frames" else "Residuals"
-        label = f"{display_name} {variant_label} {splats}"
+        variant_label = "Original" if variant == "frames" else "Novel Method"
+        label = f"{display_name} {variant_label}, {splats} Splats"
 
         plt.plot(
-            group["frame_index"],
+            group["source_frame_index"],
             group["psnr"],
+            # marker="o",
             label=label,
             linewidth=1.5,
         )
 
     plt.xlabel("Frame Number")
     plt.ylabel("PSNR, dB")
-    plt.title(f"PSNR over Frame Number: {display_name}")
+    plt.title(f"PSNR over Time: {display_name}")
     plt.grid(True, axis="both", alpha=0.3)
-    plt.legend()
+    plt.legend().set_alignment('right')
     plt.tight_layout()
     plt.savefig(graph_path, dpi=300)
     plt.close()
@@ -433,18 +575,17 @@ def export_csvs(frame_df: pd.DataFrame, summary_df: pd.DataFrame) -> None:
     summary_df.to_csv(summary_csv_path, index=False)
 
     sheets_df = summary_df[
-        [
-            "display_name",
-            "variant",
-            "splats",
-            "mean_psnr",
-            "std_psnr",
-            "median_psnr",
-            "min_psnr",
-            "max_psnr",
-            "num_compared_frames",
-            "video_file",
-        ]
+    [
+        "display_name",
+        "variant",
+        "splats",
+        "mean_psnr",
+        "std_psnr",
+        "median_psnr",
+        "min_psnr",
+        "max_psnr",
+        "num_compared_frames",
+    ]
     ].copy()
 
     sheets_df = sheets_df.sort_values(
