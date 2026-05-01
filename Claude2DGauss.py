@@ -46,7 +46,7 @@ def get_device() -> torch.device:
 def load_folder(folder_name: str, folder_type:str, max_index: int, starting_index: int = 0):
     """Returns the desired folder path, and the list of filenames in that folder (inside a defined slice)"""
     folder_path = os.path.join('Output_Data', folder_name, folder_type)
-    filenames = os.listdir(folder_path)[starting_index: max_index]
+    filenames = sorted(os.listdir(folder_path))[starting_index: max_index]
     return folder_path, filenames
 
 # ---------------------------------------------------------------------------
