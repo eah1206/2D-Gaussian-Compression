@@ -68,8 +68,9 @@ def check_path(path: str):
 
 def parse_args():
     p = argparse.ArgumentParser(description="Create video clip from frames in a specified folder")
-    p.add_argument("--path",      type=str, required=True)
-    p.add_argument("--fps",         type=int, default=30)
+    p.add_argument("--path",      type=str,  required=True)
+    p.add_argument("--fps",        type=int, default=30)
+    p.add_argument("--method",    type=str,  default='old', choices=['old', 'new'])
     return p.parse_args()
 
 
@@ -94,16 +95,23 @@ if __name__ == "__main__":
             # -------------------------------------------------------------------------------------------------------------
             # Original implementation, slight ghosting when reassembled. Uncomment and comment other implementation to run
             # -------------------------------------------------------------------------------------------------------------
-            shifted = frame.astype(np.int16)
-            diff = shifted - 128
-            reconstructed = np.clip(prev_frame + diff, 0, 255).astype(np.uint8)
+            if args.method == 'old':
+                shifted = frame.astype(np.int16)
+                diff = shifted - 128
+                reconstructed = np.clip(prev_frame + diff, 0, 255).astype(np.uint8)
+                output.write(reconstructed)
+                prev_frame = reconstructed.astype(np.int16)
+
 
             # ----------------------------------------------------------------------------------------------------------------------------------
             # Other Implementaion. Residuals look weird, but reassembled seeingly losslessly. Uncomment and comment other implementation to run
             # ----------------------------------------------------------------------------------------------------------------------------------
-            # residual = frame.astype(np.uint8)
-            # reconstructed = (prev_frame.astype(np.uint16) + residual.astype(np.uint16)).astype(np.uint8)
+            elif args.method == 'new':
+                residual = frame.astype(np.uint8)
+                reconstructed = (prev_frame.astype(np.int16) + residual.astype(np.int16)) % 256
+                reconstructed = reconstructed.astype(np.uint8)
+                output.write(reconstructed)
+                prev_frame = reconstructed
 
-            output.write(reconstructed)
-            prev_frame = reconstructed.astype(np.int16)
+
     output.release()

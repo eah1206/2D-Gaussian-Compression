@@ -4,8 +4,9 @@ import os
 import shutil
 
 
-clip_name = "Patrick.mp4"
+clip_name = "Office_Confrontation.mp4"
 parent_path = 'Output_Data'
+method = 'old'
 
 def save_data(frames: list, residuals: list):
     name = clip_name[:-4]
@@ -78,21 +79,22 @@ for i in range(1, len(frames)):
     frame1 = frames[i-1]
     frame2 = frames[i]
 
-    #residual = cv2.absdiff(frame1, frame2)
+    residual = cv2.absdiff(frame1, frame2)
 
     # -------------------------------------------------------------------------------------------------------------
     # Original implementation, slight ghosting when reassembled. Uncomment and comment other implementation to run
     # -------------------------------------------------------------------------------------------------------------
-    diff = cv2.subtract(frame2.astype(np.int16), frame1.astype(np.int16))
-    residual = np.clip(diff + 128, 0, 255).astype(np.uint8)
+    if method == 'old':
+        diff = cv2.subtract(frame2.astype(np.int16), frame1.astype(np.int16))
+        residual = np.clip(diff + 128, 0, 255).astype(np.uint8)
 
     # ----------------------------------------------------------------------------------------------------------------------------------
     # Other Implementaion. Residuals look weird, but reassembled seeingly losslessly. Uncomment and comment other implementation to run
     # ----------------------------------------------------------------------------------------------------------------------------------
-    # diff = frame2.astype(np.int16) - frame1.astype(np.int16)  # range: [-255, 255]
-    # residual = diff.astype(np.uint8)  # wraps mod 256, no shift needed
-    # cv2.imwrite("residual.png", residual)  # PNG is still required!
-
+    else:
+        diff = (frame2.astype(np.int16) - frame1.astype(np.int16)) % 256  # range: [-255, 255]
+        residual = diff.astype(np.uint8)  # wraps mod 256, no shift needed
+        cv2.imwrite("residual.png", residual)  # PNG is still required!
     residuals.append(residual)
 
 # display_images(residuals, 'Residual', clip_fps)
